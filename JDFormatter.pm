@@ -25,7 +25,6 @@ package JDFormatter;
 use strict;
 use utf8;
 use Carp;
-use Encode;
 use JDCommon;
 use JD_AText;
 
@@ -57,8 +56,9 @@ sub set_cur_trans_kind {
     $romaji_or_kiriji = ($cur_trans_kind eq 'romaji' || $cur_trans_kind eq 'kiriji');
     $cur_trans_kana = ($cur_trans_kind eq 'hiragana' || $cur_trans_kind eq 'katakana');
     
-    assert( $romaji_or_kiriji || $cur_trans_kana, "Неверный cur_trans_kind: '$cur_trans_kind';"
-            ." Должен быть один из: romaji/kiriji/hiragana/katakana" );
+    $romaji_or_kiriji || $cur_trans_kana
+        or fail "Неверный cur_trans_kind: '$cur_trans_kind';"
+                ." Должен быть один из: romaji/kiriji/hiragana/katakana";
 }
 # Set defaults
 set_cur_trans_kind ('kiriji');
@@ -437,7 +437,7 @@ sub kana {
 	elsif ( ref($kana) eq '' ) { # just text
 		$kana = parse_kana($kana);
 	}
-	else { assert(0, ""); }
+	else { fail }
 	
 	$arr = $kana->{'children'};
     
@@ -454,7 +454,7 @@ sub kana {
         if ( $s =~ /^t_$/i ) { # маленькое цу
             # Удвоение согласной
             if ( defined $arr->[$i+1] ) {
-                assert ($arr->[$i+1] =~ /^[\)kstfpcdgjzbh]/i, "".$arr->[$i+1]);
+                $arr->[$i+1] =~ /^[\)kstfpcdgjzbh]/i or fail $arr->[$i+1];
             }
             $res .= get_kana($s);
         }
@@ -518,8 +518,8 @@ sub kana {
         }
         elsif ( $s =~ /^:$/i ) {
             if ( !defined $kind ) {
-                assert ( $i > 0 || defined $kind, ""); # 1093
-                assert ( $arr->[$i-1] =~ /^[A-Za-z]/, "" );
+                $i > 0 || defined $kind or fail; # 1093
+                $arr->[$i-1] =~ /^[A-Za-z]/ or fail;
                 $is_katakana = 1 if $arr->[$i-1] =~ /^[A-Z]/;
             }
             if ( $is_katakana ) {
@@ -557,8 +557,9 @@ sub kana {
             if ( defined $kana{$s} ) {
                 $res .= $kana{$s};
             } else {
-                assert ($s !~ /[a-zA-Zа-яёЁА-Я:_ ]/, $s); # Не содержит букв и других
-                        # символов, которые должны быть распарсены 
+                # Не содержит букв и других символов, которые должны быть распарсены 
+                $s !~ /[a-zA-Zа-яёЁА-Я:_ ]/ or fail $s;
+                
                 $res .= $s;
             }
         }
@@ -569,19 +570,19 @@ sub kana {
 
 sub get_kana {
     my ($txt) = @_;
-    assert ( defined $kana{$txt}, "kana_sub: undefined: $txt");
+    defined $kana{$txt} or fail "kana_sub: undefined: $txt";
     return $kana{$txt};
 }
 
 sub kiriji {
     my ($txt) = @_;
     
-    assert defined $txt && $txt, "";
-    assert ( ref($txt) eq '', "" );
+    $txt or fail;
+    ref($txt) eq '' or fail;
     
     my $arr = parse_kana(lc $txt);
     
-    assert defined $arr->{'children'} && @{$arr->{'children'}}, "";
+    defined $arr->{'children'} && @{$arr->{'children'}} or fail;
     
     return kiriji_sub($arr->{'children'});
 }
@@ -601,13 +602,13 @@ sub kiriji_sub {
             if ( $n =~ /^(\))$/ ) {
                 $n = $arr->[$i+2];
             }
-            assert ( defined $n, "" );
+            defined $n or fail;
             if ( $n =~ /^([kstpcfdgjzbh])/ ) {
                 my $t = $1;
                 $t =~ tr/kstpcfdgjzbh/кстптфдгддбх/;
                 $res .= $t; next;
             }
-            else { assert(0, "@$arr"); }
+            else { fail "@$arr"; }
         }
         elsif ( $s eq 'n' && $i < $N-1 ) {
             my $n = $arr->[$i + 1];
@@ -673,7 +674,8 @@ sub kiriji_sub {
             
             $s =~ tr/kgnmbprsztdhfwaiueojv/кгнмбпрсзтдхфваиуэожв/;
             
-            assert $s !~ /[a-zA-Z]/, "'$s' in '@$arr'"; # Не содержит нераспарсенных символов.
+            $s !~ /[a-zA-Z]/  # Не содержит нераспарсенных символов.
+                or fail "'$s' in '@$arr'";
         }
         $res .= $s;
     }
@@ -684,7 +686,7 @@ sub kiriji_sub {
 sub cur_trans {
     my ($text) = @_;
     
-    assert ref($text) eq '', "";
+    ref($text) eq '' or fail;
     
     if ( $cur_trans_kind eq 'romaji' ) {
         $text =~ s/:/$nw_over/eg;
@@ -700,7 +702,7 @@ sub cur_trans {
         return kana(uc $text, "");
     }
     
-    assert(0, "");
+    fail;
 }
 #----------------------------------------------------------------------
 
@@ -708,7 +710,7 @@ sub cur_trans {
 sub make_kanji ( $ ) {
     my ($id) = @_;
     $id =~ s/^0+//; # убираем нули из начала, чтобы проверить, что это число.
-    assert $id eq int($id), "";
+    $id eq int($id) or fail;
     return atext_kanji( chr( get_kanji_uncd($id) ), $id );
 }
 #----------------------------------------------------------------------
@@ -716,9 +718,9 @@ sub make_kanji ( $ ) {
 # Кэширует запросы к базе.
 sub get_kanji_uncd {
     my ($num) = @_;
-    assert  defined $num, "Undef kanji id: '$num'";
-    assert  $num eq int($num), "Wrong kanji id: '$num'";
-    assert  $num > 0, "Wrong kanji id: '$num'";
+    defined $num  or fail "Undef kanji id: '$num'";
+    $num eq int($num)  or fail "Wrong kanji id: '$num'";
+    $num > 0  or fail "Wrong kanji id: '$num'";
 
     # Смотрим в кэш
     if ( defined $kanji_cache->{$num} 
@@ -758,8 +760,8 @@ sub inquery_kanji_full {
     return undef if !$row;
     
     # Декодируем UTF-8
-    $row->{'Russian'} = decode_utf8( $row->{'Russian'} );
-    $row->{'RusNick'} = decode_utf8( $row->{'RusNick'} );
+    utf8::decode( $row->{'Russian'} );
+    utf8::decode( $row->{'RusNick'} );
     
     # Добавляем в кэш
     $kanji_cache->{$num} = $row;
@@ -771,21 +773,21 @@ sub inquery_kanji_full {
 # Составное слово
 sub make_tango {
     my ($tango_id, $add_reading) = @_;
-    assert (defined $tango_id, "");
+    defined $tango_id or fail;
     
     my $row = inquery_tango_full($tango_id);
-    assert $row, "No such record in the database: Tango $tango_id";
+    $row or fail "No such record in the database: Tango $tango_id";
     
     my $tan_obj = parse_tan_simple( $row );
-    assert defined $tan_obj->{'word'}, "";
+    defined $tan_obj->{'word'} or fail;
     
     my $text = $tan_obj->{'word'};
     
     if ( $add_reading ) {
-        assert defined $tan_obj->{'readings'}->[0], "No readings in tango '$tango_id'";
+        defined $tan_obj->{'readings'}->[0] or fail "No readings in tango '$tango_id'";
         
         my $reading = $tan_obj->{'readings'}->[0]->{'text'};
-        assert defined $reading, "";
+        defined $reading or fail;
 
         $text .=" [" . cur_trans( $reading ) . "]";
     }
@@ -812,7 +814,7 @@ sub inquery_tango_full {
     return undef if !$row;
     
     # Декодируем UTF-8
-    $row->{'Russian'} = decode_utf8( $row->{'Russian'} );
+    utf8::decode( $row->{'Russian'} );
     
     # Добавляем в кэш
     $tango_cache->{$tango_id} = $row;
@@ -831,7 +833,7 @@ sub clear ( ) {
 # Возвращает дерево $dom с форматированной статьёй.
 sub format_article {
     my ($num) = @_;
-    assert ($num eq int($num), "");
+    $num eq int($num) or fail;
     
     # Берём данные из базы
     my $row = inquery_kanji_full($num);
@@ -887,7 +889,7 @@ sub format_article {
 	if ( defined $objects->{'tango_titles'} ) {
 	    
         if ( $objects->{'tango_header_replace'} ) {
-            assert $objects->{'tango_titles'}->[0], "";
+            $objects->{'tango_titles'}->[0] or fail;
             my $newhead = $objects->{'tango_titles'}->[0]; # #40
             $newhead = parse_tango_title( $newhead, 'no_abbr_italic' );
             $newhead = atext_ucfirst( $newhead );
@@ -964,7 +966,7 @@ sub parse_kun_first_chunk ( $$ ) {
     #   ^4 означает 14.
     #   (0 когда нет каны после иероглифа).
     
-    assert  $first_chunk =~ /^(!\d\d?[!\?])?[\d\^_]*$/, "";
+    $first_chunk =~ /^(!\d\d?[!\?])?[\d\^_]*$/ or fail;
     
     if ( $first_chunk =~ s/^!(\d\d?)([!\?])// ) {
         # Пока не используется
@@ -985,12 +987,13 @@ sub parse_kun_first_chunk ( $$ ) {
             $i++;
         }
         elsif ( $first_chunk =~ s/^_// ) {
-            assert $first_chunk !~ /^_/, ""; # Два подчёркивания _ подряд не должно быть.
+            $first_chunk !~ /^_/ # Два подчёркивания _ подряд не должно быть.
+                or fail;
             # Свёртка?
             # Пока не используется
         }
 
-        assert( $first_chunk ne $first_chunk_prev, "First chunk: Inf loop: '$first_chunk'");
+        $first_chunk ne $first_chunk_prev or fail "First chunk: Inf loop: '$first_chunk'";
     }
 }
 #----------------------------------------------------------------------
@@ -1000,7 +1003,7 @@ sub parse_kun_main {
     my ($kunyomi) = @_;
     
     # ** означают бледный цвет и должны идти перед словом
-    assert $kunyomi !~ /\*\*[^a-z ]/, "";
+    $kunyomi !~ /\*\*[^a-z ]/ or fail;
     
     # Небольшое переформатирование
     # Убираем пробелы перед кунами, записанными катаканой
@@ -1069,13 +1072,14 @@ sub parse_kun_chain {
     
     my $kun = new_dom_object('kun'); # объект-результат
     
-    assert( @$kun_chain, 'Empty kun chain.');
+    @$kun_chain or fail 'Empty kun chain.';
 
     # бледное, если первое слово оканчивается подчёркиванием
     my $main_word = $kun_chain->[0];
     $kun->{'pale'} = ( $main_word =~ s/_$// );
         
-    assert ( $main_word =~ /^[a-zA-Z:][a-zA-Z:\(\)' \-]*$/, "Wrong main word '$main_word'" );
+    $main_word =~ /^[a-zA-Z:][a-zA-Z:\(\)' \-]*$/
+        or fail "Wrong main word '$main_word'";
     
     $kun->{'main'} = $main_word;
     $kun->{'descr'} = $main_word; # DBG: для отладки
@@ -1115,7 +1119,7 @@ sub parse_kun_chain {
                 $ins_pos_prev = 0;
                 
 				# Добавляем
-				arr_ref_push ( $kun->{'transcriptions'}, $last_transcr );
+				ref_push $kun->{'transcriptions'}, $last_transcr;
 			}
 			elsif ( $chunk =~ s/^=([\w \-:]+)// ) { # =word
 				# 31: *aruiha*=*aruiwa*
@@ -1127,8 +1131,8 @@ sub parse_kun_chain {
 				    $last_transcr->{'word'} = $cl;
 				    # Проверяем, что в новое слово отличается только ha/wa
 				    $cl =~ s/wa/ha/g;
-				    assert $cl eq $old_word,
-				            "Bad fixword: '$old_word'"." => '".$last_transcr->{'word'}."'";
+				    $cl eq $old_word
+                        or fail "Bad fixword: '$old_word'"." => '".$last_transcr->{'word'}."'";
                 }
 			}
 			elsif ( $chunk =~ s/^&([\w \-:]+)// ) { # &word
@@ -1140,7 +1144,8 @@ sub parse_kun_chain {
 
 				# !R - то же, что и !!, но только для русского словаря
 
-				assert ( !$kun->{'under'}, 'parse_kun_chain_chunk: Transcript_under twice' );
+				!$kun->{'under'}
+				    or fail 'parse_kun_chain_chunk: Transcript_under twice';
 				$kun->{'under'} = 1;
 			}
 			elsif ( $chunk =~ s/^!Q(\d)$// ) { # !Qn
@@ -1158,7 +1163,7 @@ sub parse_kun_chain {
                             if ( substr($_->{'word'}, $j, 1) =~ /^[iI]$/
                                 && ++$i_counter eq $ipos ) 
                             {
-                                assert ( $j < $len, "Wrong i-fix: Q$ipos ($j) in '".$_->{'word'}."'" );
+                                $j < $len or fail "Wrong i-fix: Q$ipos ($j) in '".$_->{'word'}."'";
                                 substr($_->{'word'}, $j, 1) =~ s/^.$/$&:/;
                                 last INNER;
                             }
@@ -1172,7 +1177,7 @@ sub parse_kun_chain {
 			elsif ( $chunk =~ s/^#([^ ]+) ?$// ) { #NA
 				# Постфикс (например ~na)
 				my $postfix = $1;
-				assert( 0, "Two postfixes") if defined $kun->{'postfix'};
+				!defined $kun->{'postfix'} or fail "Two postfixes";
 				$kun->{'postfix'} = $postfix;
 			}
 			elsif ( $chunk =~ s/^([-])(\d+)// ) {
@@ -1185,7 +1190,7 @@ sub parse_kun_chain {
                 $ins_pos += $ins_shift;
                 
                 # Контролируем, что позиция вставки только увеличивается
-                assert $ins_pos_prev <= $ins_pos, "";
+                $ins_pos_prev <= $ins_pos or fail;
                 
                 substr ( $last_transcr->{'word'}, $ins_pos, 0 ) = $ins_symb; # вставка 
                 $ins_pos_prev = $ins_pos;
@@ -1213,7 +1218,7 @@ sub parse_kun_chain {
                     $kun->{'force_hiragana'} = 1;
                 }
                 
-                arr_ref_push  $kun->{'remarks'}, $rem_obj;
+                ref_push $kun->{'remarks'}, $rem_obj;
                 $rem_prev = $rem_obj;
 			}
 			elsif ( $chunk =~ s/^~(\d+)(!?)//) { # hiragana prefix ~n[!]
@@ -1233,7 +1238,7 @@ sub parse_kun_chain {
 				$ins_sign =~ s/\+/$iteration_mark/g;
 				
 				$ins_pos = length $kun->{'main'} if $ins_pos > length $kun->{'main'}; # #2160, #2411
-				assert $word_ins_pos_prev <= $ins_pos, "";
+				$word_ins_pos_prev <= $ins_pos or fail;
 				substr ( $kun->{'main'}, $ins_pos, 0 ) = $ins_sign; # вставка
 				$word_ins_pos_prev = $ins_pos;
 				$word_ins_shift += length $ins_sign;
@@ -1245,7 +1250,7 @@ sub parse_kun_chain {
 				
 				$kun->{'formatter'} = parse_formatter($formatter);
 			}
-			assert ($chunk ne $chunk_prev, "'$chunk' <> '$chunk_orig'");
+			$chunk ne $chunk_prev or fail "'$chunk' <> '$chunk_orig'";
 		} # end of while ( $chunk !~ /^\s*$/ )
     } # end of  foreach ( @$kun_chain )
     
@@ -1274,11 +1279,11 @@ sub parse_formatter {
         
         if ( $chunk =~ s/^\$(\d)// ) { # $\d - после какой буквы вставлять. $0 - перед словом.
             $pos = $1;
-            assert $pos >= $pos_prev, "";
+            $pos >= $pos_prev or fail;
             $pos_prev = $pos;
         }
         elsif ( $chunk =~ s/^(\d{4})// ) { # 1234 - ID иероглифа
-            arr_ref_push $res->{$pos}, make_kanji($1);
+            ref_push $res->{$pos}, make_kanji($1);
         }
         elsif ( $chunk =~ s/^"([^"]*)"// ) { # "hiragana"
             my $txt = $1;
@@ -1286,18 +1291,18 @@ sub parse_formatter {
             $txt =~ s/qi/$iteration_mark/g;
             $txt =~ s/ye/t_/g;
             
-            assert $txt !~ /[A-Z]/, "";
+            $txt !~ /[A-Z]/ or fail;
             
-            arr_ref_push $res->{$pos}, kana($txt, 'hiragana');
+            ref_push $res->{$pos}, kana($txt, 'hiragana');
         }
         elsif ( $chunk =~ s/^[\[\]\+]+// ) { # просто текст
             my $txt = $&;
             $txt =~ s/\+/$iteration_mark/g;
             
-            arr_ref_push $res->{$pos}, $txt;
+            ref_push $res->{$pos}, $txt;
         }
         
-        assert( $chunk_prev ne $chunk, "parse_formatter: Infinite loop");
+        $chunk_prev ne $chunk or fail "parse_formatter: Infinite loop";
     }
     
     return $res;
@@ -1330,7 +1335,7 @@ sub parse_remark {
         $res->{'code'} = '^'.$1;
     }
 
-    assert defined $res->{'code'}, "";
+    defined $res->{'code'} or fail;
 
 	my $line_prev; # Для отлова зависаний (строка должна уменьшаться на каждой итерации). 
     while ( $line !~ /^\s*$/ ) { # Может идти несколько ссылок подряд.
@@ -1368,7 +1373,7 @@ sub parse_remark {
             if ( $txt =~ s/\-([\w ]+)$// ) {
                 my $pref = $1;
                 
-                assert $kind eq 'hiragana', "";
+                $kind eq 'hiragana' or fail;
                 $pref = kana($pref, $kind);
                 
                 unshift @{$res->{'children'}}, make_text_obj('text', $pref);
@@ -1394,11 +1399,11 @@ sub parse_remark {
         }
     } continue {
     	# Проверка зависаний (строка должна уменьшаться на каждой итерации). 
-        assert( $line_prev ne $line,
-            "Infinite loop: '$line' <> '$line_orig'");
+        $line_prev ne $line
+            or fail "Infinite loop: '$line' <> '$line_orig'";
     }
     
-    assert ( defined $res->{'code'}, "" );
+    defined $res->{'code'} or fail;
 	
     return ($line, $res);
 }
@@ -1427,7 +1432,7 @@ sub make_binding_obj {
         $obj->{'topright'} = 1;
     }
     
-    assert( %$obj, "" );
+    %$obj or fail;
     
     return $obj;
 }
@@ -1437,7 +1442,7 @@ sub parse_names_kuns {
     
     return if !@chunks;
 
-    assert !defined $chunks[3], ""; # [3] - не должно быть
+    !defined $chunks[3] or fail; # [3] - не должно быть
         
     my @res; # Массив результатов
     
@@ -1458,10 +1463,10 @@ sub parse_names_kuns {
                 next;
             }
             elsif ( $s =~ /^([\w :\-]+)$/ ) { # Слово
-                arr_ref_push $res[$i], $s if ( $s !~ /^\s*$/ );
+                ref_push $res[$i], $s if ( $s !~ /^\s*$/ );
             }
             else {
-                assert ( 0, "Names kuns: '$s' / '$chunk'");
+                fail "Names kuns: '$s' / '$chunk'";
             }
         }        
     }
@@ -1480,8 +1485,8 @@ sub format_rusnick {
     $rusnick =~ s/^\*//; # убираем лишнюю звёздочку в начале #2828
     $rusnick =~ s/\*$//; # и в конце
     
-    assert ( $rusnick !~ /^\*/, "" );
-    assert ( $rusnick !~ /\*$/, "" );
+    $rusnick !~ /^\*/ or fail;
+    $rusnick !~ /\*$/ or fail;
     
     my @rusnick_spl = split /\*/, $rusnick; # разделитель - звёздочка *
 
@@ -1489,19 +1494,19 @@ sub format_rusnick {
 
     foreach my $s ( @rusnick_spl ) {
         next if $s eq '_'; # означает, что ники пишутся на одной строке?
-        assert $s =~ /^[\w\- \.!"\(\)]+/, "";
+        $s =~ /^[\w\- \.!"\(\)]+/ or fail;
         
         if ( $s =~ /^!(\d+)$/ ) { # #1391: замок*!2
         # ударение
-            assert @tmp == 1, "";
+            @tmp == 1 or fail;
             
             substr( $tmp[0], $1, 0 ) = $stress_mark; # вставляем символ ударения
             next;
         }
         
         # Параноя
-        assert $s !~ /[\.!\)]./, "";
-        assert $s =~ /[а-я]/, "";
+        $s !~ /[\.!\)]./ or fail;
+        $s =~ /[а-я]/ or fail;
         
         push @tmp, $s;
     }
@@ -1528,8 +1533,8 @@ sub format_onyomi {
     $onyomi =~ s/^\*//; # Убираем звёздочки в начале
     $onyomi =~ s/\*$//; # и в конце
     
-    assert ( $onyomi !~ /^\*/, "" );
-    assert ( $onyomi !~ /\*$/, "" );
+    $onyomi !~ /^\*/ or fail;
+    $onyomi !~ /\*$/ or fail;
 
     
     my @onyomi_spl = split /\*/, $onyomi;
@@ -1538,7 +1543,7 @@ sub format_onyomi {
     my $kokuji = 0;
     
     foreach my $s ( @onyomi_spl ) {
-        assert $s, "";
+        $s or fail;
         
         if ( $s =~ /^-/ ) {
             $kokuji = 1;
@@ -1552,7 +1557,7 @@ sub format_onyomi {
             $text =~ s/[\(]/ $&/g;
             
             $text = cur_trans( $text );
-            assert $text !~ /[\^#]/, "";
+            $text !~ /[\^#]/ or fail;
             
             $text = uc $text if  $romaji_or_kiriji; # Uppercase
             
@@ -1561,7 +1566,7 @@ sub format_onyomi {
             $res .= $text;
         }
         else {
-            assert ( 0, "Something strange in onyomi: '$s' in '$onyomi'" );
+            fail "Something strange in onyomi: '$s' in '$onyomi'";
         }
     }
 
@@ -1584,7 +1589,7 @@ sub format_remarks_glob {
     my $grouped_remarks;
     foreach ( @$remarks ) {
         my $code = $_->{'code'};
-        arr_ref_push ( $grouped_remarks->{$code}, $_ );
+        ref_push $grouped_remarks->{$code}, $_;
     }
     
     my $res = '';
@@ -1598,7 +1603,7 @@ sub format_remarks_glob {
             $color = 'pref'.$&;
             $color =~ tr/\^\$\*/112/;
         } else {
-            assert( 0, "Unkown remark code: '$code'" );
+            fail "Unkown remark code: '$code'";
         }
         
         $res .= '  ' if $res;
@@ -1678,17 +1683,25 @@ sub format_kun_column {
 
     my $word = format_word( $kun, $objects->{'main_kanji'}, ($kun->{'hiragana_pref'} or 0) );
     
+    # Inserts
     if ( defined $kun->{'formatter'} ) {
         foreach my $pos ( keys %{$kun->{'formatter'}} ) {
             splice ( @$word, $pos, 0, @{$kun->{'formatter'}{$pos}} );
         }
     }
     
-    $res .= join '', @$word;
+    $word = join '', @$word;
+    $res .= $word;
 
     if ( $kun->{'under'} ) { # транскрипция снизу #2664
         $res .= "\n";
     }
+    
+    # ANALYSIS:
+    #$word =~ s/\^K\d{4}(.)#/$1/g;
+    #print STDERR encode_utf8 (
+            #$objects->{'article_num'}.":".$word."|"
+            #.join(",", map {$_->{'word'}} @{$kun->{'transcriptions'}})."\n" );
     
     # транскрипции
     foreach my $tr_obj ( @{$kun->{'transcriptions'}} ) {
@@ -1734,7 +1747,7 @@ sub make_transcr {
         elsif ( $word =~ s/^[^a-zA-Z: \-]// ) { # остальные символы
             $res .= $&;
         }
-        assert ( $word ne $word_prev, "Infinite loop: '$word'");
+        $word ne $word_prev or fail "Infinite loop: '$word'";
     }
     
     $res = "[".$res."]";
@@ -1789,35 +1802,35 @@ sub format_russian_column {
                 
                 if ( defined $b_obj->{'line'} ) {
                     my $elem_num = $b_obj->{'line'};
-                    arr_ref_push ( $bindings->{$elem_num}, $_ );
+                    ref_push $bindings->{$elem_num}, $_;
                 }
                 elsif ( defined $b_obj->{'range'} ) {
                     my $from = $b_obj->{'range'}->[0];
                     #my $to = $b_obj->{'range'}->[1];
                     
-                    arr_ref_push ( $bindings->{$from}, $_ );
+                    ref_push $bindings->{$from}, $_;
                 }
                 elsif ( defined $b_obj->{'all'} ) {
-                    arr_ref_push ( $bindings->{1}, $_ );
+                    ref_push $bindings->{1}, $_;
                 }
                 elsif ( defined $b_obj->{'subleft'} ) {
-                    arr_ref_push ( $bindings->{'u'}, $_ ); # под таблицей
+                    ref_push $bindings->{'u'}, $_; # под таблицей
                 }
                 elsif ( defined $b_obj->{'linefeed'} ) {
                     my $last_line_num = @meanings - 1;
-                    arr_ref_push ( $bindings->{$last_line_num}, $_ );
+                    ref_push $bindings->{$last_line_num}, $_;
                 }
                 elsif ( defined $b_obj->{'topright'} ) {
-                    arr_ref_push ( $bindings->{0}, $_ );
+                    ref_push $bindings->{0}, $_;
                 }
                 else {
-                    assert(0, "Unknown binding");
+                    fail "Unknown binding";
                 }
             }
             else {
                 # Добавляется к последней строке (#254)
                 my $last_line_num = @meanings - 1;
-                arr_ref_push ( $bindings->{$last_line_num}, $_ );
+                ref_push $bindings->{$last_line_num}, $_;
             }
         } continue {
             $prev = $_;
@@ -1862,7 +1875,7 @@ sub format_russian_column {
                     $from = 1;
                     $span_to = @meanings - 1;
                 }
-                assert ( $from == $i, "По построению" );
+                $from == $i or fail "По построению";
                 
                 my $join = new_dom_object ('htable', "Join");
                 # таблица, состоящая из вертикальной черты (слева) и ссылки (справа)
@@ -1883,7 +1896,7 @@ sub format_russian_column {
                 $meaning =~ s/(\n|$)/  $remarks$1/;
             }
             else {
-                assert(0, "");
+                fail;
             }
         }
         
@@ -1930,8 +1943,8 @@ sub format_remarks {
     my $prev; my $saved_code;
     for (my $j = 0; $j < $M; $j++ ) {
         my $r = $b_remarks->[$j];
-        assert ( defined $r, "" );
-        assert ( defined $r->{'code'}, "" );
+        defined $r or fail;
+        defined $r->{'code'} or fail;
         
         $saved_code = $r->{'code'}; # чтобы потом обратно вернуть
         if ( defined $prev && $r->{'code'} eq $prev->{'code'} ) {
@@ -1971,14 +1984,14 @@ sub format_remarks {
 
 sub format_remark {
     my ($remark, $kun) = @_;
-    assert( defined $remark, "" );
+    defined $remark or fail;
         
     my $res = '';
     
     my $code = $remark->{'code'};
     
     if ( $code ne '' ) {
-        assert ( defined $code_names{$code}, "format_remark: undef code: $code");
+        defined $code_names{$code} or fail "format_remark: undef code: $code";
         $res .= $code_names{$code}.' ';
     }
     
@@ -2014,7 +2027,7 @@ sub format_remark {
                     }
                 }
                 else {
-                    assert (0, "Unknown type: '$type'");
+                    fail "Unknown type: '$type'";
                 }
             }
         }
@@ -2046,7 +2059,7 @@ sub format_word { # Не линеаризовывать!
     my $word = lc $kun->{'main'};
     
     my $kanji_size = $kun->{'kanjisize'} || length $kun->{'main'};
-    assert( $kanji_size eq int($kanji_size), "wrong kanji_size: '$kanji_size'" );
+    $kanji_size eq int($kanji_size) or fail "wrong kanji_size: '$kanji_size'";
 
     my @res = (); # Массив нужен, чтобы потом делать вставки.
     
@@ -2057,8 +2070,8 @@ sub format_word { # Не линеаризовывать!
         push @res, split //, kana( $pre_kanji, 'hiragana' );
     }
     
-    assert ( substr($word, $kanji_from, $kanji_size ) =~ /^[\w:' \-]+$/, 
-            "Strange symbols under kanji: '$word', $kanji_from, $kanji_size" );
+    substr($word, $kanji_from, $kanji_size ) =~ /^[\w:' \-]+$/ 
+        or fail "Strange symbols under kanji: '$word', $kanji_from, $kanji_size";
     
     push @res, make_kanji($kanji_id);
     
@@ -2092,7 +2105,7 @@ sub format_footer {
         $res = "В словаре Н. И. Фельдман-Конрад представлен упрощённой формой.";
     }
     else {
-        assert (0, "format_footer: unknown code: $footer");
+        fail "format_footer: unknown code: $footer";
     }
     
     return $res;
@@ -2115,7 +2128,7 @@ sub format_tango {
         $row_num = 0 if @titles < 2; # не показывать номера, если всего один пункт
         
         if ( $objects->{'tango_header_replace'} ) {
-            assert $row_num == 0, "";
+            $row_num == 0 or fail;
             $title = ''; # Заголовок значения перенесён в общий заголовок
         }
         
@@ -2161,7 +2174,7 @@ my $names_1_chr = '1'; # единица в квадратике [1] #8321, #9843
 sub format_tango_block {
     my ($block, $last) = @_;
 
-    assert ref($block) eq 'ARRAY', "Array wanted.";
+    is_array($block) or fail "Array wanted.";
 
     my $block_body = new_dom_object ('vtable', "Tango block");
     
@@ -2199,7 +2212,7 @@ sub format_tango_block {
         
         if ( ! defined $objects->{'tan_objs'}{$tango_id} ) {
             my $row = inquery_tango_full( $tango_id );
-            assert $row, "No such record in the database: Tango $tango_id";
+            $row or fail "No such record in the database: Tango $tango_id";
             $objects->{'tan_objs'}{$tango_id} = parse_tan( $row );
         }
         my $tango_obj = $objects->{'tan_objs'}{$tango_id};
@@ -2347,13 +2360,23 @@ sub tango_message {
         return "Названия видов птиц см. в статье для знака ".make_kanji(1146).".";
     }
     
-    assert (0, "Unknown tango_message num: '$num'");
+    fail "Unknown tango_message num: '$num'";
 }
 
 sub format_tango_word_and_transcr {
     my ($tango_obj, $marker) = @_;
     
     my $res = '';
+    
+    # ANALYSIS:
+    #my $word = $tango_obj->{'word'};
+    #$word =~ s/\^K\d{4}(.)#/$1/g;
+    #print STDERR encode_utf8 ( ""
+            ##$tango_obj->{'nomer'}.":"
+            #.$word."|"
+            #.join(",", map {$_->{'text'}} @{$tango_obj->{'readings'}})
+            #."\n" );
+    
     
     if ( defined $marker && $marker ne '' ) {
         if ( $marker eq '*' ) { # ромб
@@ -2374,7 +2397,7 @@ sub format_tango_word_and_transcr {
             # и никогда в сочетаниях с другими знаками.
         }
         else {
-            assert ( 0, "Unknown marker: '$marker'");
+            fail "Unknown marker: '$marker'";
         }
     } else {
         # Marker is not defined
@@ -2418,8 +2441,8 @@ sub format_names_list {
     
     return if ( !@$kuns_arr );
     
-    assert ( defined $kuns_arr->[0] && @{$kuns_arr->[0]}, "");
-    assert ( !defined $kuns_arr->[3], "");
+    defined $kuns_arr->[0] && @{$kuns_arr->[0]} or fail;
+    !defined $kuns_arr->[3] or fail;
     
     my $res = "";
     
@@ -2460,7 +2483,7 @@ sub format_utility {
     
     my $res = "";
     
-    assert defined $utility{$code}, "Unknown utility code: '$code'";
+    defined $utility{$code} or fail "Unknown utility code: '$code'";
     
     return atext_colored( 'utility', $utility{$code} );
 }
@@ -2506,7 +2529,7 @@ sub parse_kan_russian {
     my $tango_rus_headers = $line_split[1];
     
     # Проверяем, что нет необработанных элементов
-    assert ( 0, "$line_split[2]") if ( defined $line_split[2] );
+    !defined $line_split[2] or fail "$line_split[2]";
 
     # Parsing russian
     $russian = parse_rus_prefixes($russian) if $russian; # Не вносить в следующий блок! #2171
@@ -2519,13 +2542,13 @@ sub parse_kan_russian {
         {
             $kun_i++;
             if ( $russian =~ s{^([^/]+)(/|$)}{} ) {
-                arr_ref_push  $objects->{'kuns_rus'}, parse_kun_rus ( $1 );
+                ref_push $objects->{'kuns_rus'}, parse_kun_rus ( $1 );
             } else {
-                assert (0, "$russian");
+                fail "$russian";
             }
         }
         else { # остальное - заголовки блоков танго
-            assert ( !$tango_rus_headers, "" );
+            !$tango_rus_headers or fail;
             $tango_rus_headers = $russian;
             $russian = "";
         }
@@ -2546,7 +2569,7 @@ sub parse_kan_russian {
     if ( $tango_rus_headers =~ /^@./
         && ! defined $objects->{'tango_titles'}->[1] ) 
     {
-        assert defined $tan_title_abbrevs{$&}, "";
+        defined $tan_title_abbrevs{$&} or fail;
         
         $objects->{'tango_header_replace'} = 1;
     }
@@ -2566,23 +2589,23 @@ sub parse_rus_prefixes {
                 my $remark_obj = new_dom_object('remark_glob');
                 $remark_obj->{'code'} = $pref_code;
                 add_child  $remark_obj, new_dom_object('kanji', 'id' => $kanji_id );
-                arr_ref_push  $objects->{'remarks_glob'}, $remark_obj;
+                ref_push  $objects->{'remarks_glob'}, $remark_obj;
             }
             else {
-                assert( 0, "Strange rus pref: $txt;");
+                fail "Strange rus pref: $txt;";
             }
         }
         # =
         elsif ( $txt =~ s/^=(.*)$// ) { # Не '~='!!! #5412 
             my $tmp = 'Номинальное значение: «'.$1.'».'."\n";
             #.'Сочетания малочисленны и неупотребительны.';
-            arr_ref_push $objects->{'messages'}, $tmp;
+            ref_push $objects->{'messages'}, $tmp;
             last;
         }
         elsif ( $txt =~ s/^(~+)(?![~\d-])// ) { # (?! шаблон) # check #3720, #3000
         # ~~~ в словаре Н. И. Фельдман-Конрад
             my $txt = format_footer($&);
-            assert !defined $dom->{'footer'}, $dom->{'footer'};
+            !defined $dom->{'footer'} or fail $dom->{'footer'};
             $dom->{'footer'} .= $txt;
         }
         
@@ -2636,7 +2659,7 @@ sub parse_kun_rus {
         
         $meaning->{'pale'} = 1 if $pale;
         
-        arr_ref_push( $result->{'meanings'}, $meaning);
+        ref_push  $result->{'meanings'}, $meaning;
     }
     
     return $result;
@@ -2669,7 +2692,7 @@ sub parse_text_russian {
         elsif ( $line =~ s/^\@[\d\@]// ) { # сокращения
             my $abbr = $&;
             
-            assert( defined($abbreviations{$abbr}), "Unknown abbr: $abbr");
+            defined $abbreviations{$abbr} or fail "Unknown abbr: $abbr";
             
             $res .= " " if $res !~ /(^| )$/;
             $res .= atext_italic($abbreviations{$abbr});
@@ -2679,7 +2702,7 @@ sub parse_text_russian {
             ($line, $res) = parse_text_common ( $line, $res, \$italic );
 		}
         
-        assert( $line_prev ne $line, "infinite loop: $line %% $line_orig" );
+        $line_prev ne $line or fail "infinite loop: $line %% $line_orig";
     }
     
     if ( $italic ) {
@@ -2729,7 +2752,7 @@ sub parse_text_tango {
             
             if ( $rem_obj->{'code'} ) {
                 my $code = $rem_obj->{'code'};
-                assert ( defined $code_names{$code}, "Undefined code: '$code'");
+                defined $code_names{$code} or fail "Undefined code: '$code'";
                 $rem .= $code_names{$code}.' ';
             }
             if ( defined $rem_obj->{'text'} ) {
@@ -2763,7 +2786,7 @@ sub parse_text_tango {
             }
             else {
                 $res .= " " if $res !~ /(^| )$/;
-                assert  defined( $abbreviations{$abbr} ), "Unknown abbr: '$abbr'";
+                defined $abbreviations{$abbr} or fail "Unknown abbr: '$abbr'";
                 $res .= atext_italic( $abbreviations{$abbr} );
             }
         }
@@ -2774,7 +2797,7 @@ sub parse_text_tango {
             ($line, $res) = parse_text_common ( $line, $res, \$italic );
 		}
         
-        assert ( $line_prev ne $line, "infinite loop: $line %% $line_orig" );
+        $line_prev ne $line or fail "infinite loop: $line %% $line_orig";
     }
     
     if ( $italic ) {
@@ -2795,10 +2818,10 @@ sub parse_text_common {
 		
         $txt =~ s/"$//; # Убираем кавычку из конца строки (если есть)
         
-		assert ( $txt =~ /^([\w \.,:;>\-\+'"]+)$/, "strange brackets: '$txt'" );
+		$txt =~ /^([\w \.,:;>\-\+'"]+)$/ or fail "strange brackets: '$txt'";
 		
         $txt =~ s/>([a-z]+)>/[$1]/; # Такой вид задания скобок: >me> = [me]
-        assert ( $txt !~ /[<>]/, "Unmatching >..> brackets: '$txt'" );
+        $txt !~ /[<>]/ or fail "Unmatching >..> brackets: '$txt'";
         
 		if ( $mark eq '-' ) { # просто текст в кавычках
             $res .= '"'.cur_trans($txt).'"'; # здесь - обычные кавычки, будут заменены в другой ф-ии.
@@ -2816,7 +2839,7 @@ sub parse_text_common {
 			$res .= atext_colored ('example', $tmp);
         }
 		else {
-		    assert (0, "Unknown mark: '$mark'");
+		    fail "Unknown mark: '$mark'";
 		}
 		$res .= add_spaces( $res, $line );
 	}
@@ -2840,8 +2863,8 @@ sub parse_text_common {
             # поэтому ударение смещается. #2618, #5311, #6245
             $pos-- if $res=~/\s+$/ && $cur_block eq 'Kanji';
             
-            assert  substr($txt, $pos-1, 1) =~ /[аоуыэяюие]/,
-                    "Not a vowel under stress: ".substr($txt, $pos-1, 1)." '$txt'";
+            substr($txt, $pos-1, 1) =~ /[аоуыэяюие]/
+                or fail "Not a vowel under stress: ".substr($txt, $pos-1, 1)." '$txt'";
             substr( $txt, $pos, 0 ) = $stress_mark;
             $shift++;
         }
@@ -2894,7 +2917,7 @@ sub parse_text_common {
 		my $code = $1;
 		my $brackets = $4;
 		
-        assert  defined $particles{$code}, "Unknown particle: '$code'";
+        defined $particles{$code} or fail "Unknown particle: '$code'";
         
         my $particle = $particles{$code};
         $particle = cur_trans( $particle ) if $particle ne '';
@@ -2907,7 +2930,7 @@ sub parse_text_common {
             $particle = '~['.$particle.']';
         }
         else {
-            assert (0, "particle: unknown bracket: '$brackets'");
+            fail "particle: unknown bracket: '$brackets'";
         }
         
         $res .= " " if $res !~ /(^| )$/;
@@ -2917,8 +2940,8 @@ sub parse_text_common {
 	elsif ( $line =~ s/^=([A-Z]([^\+\^\(\.]|\(#)*[a-z])// ) { # lat.
 		my $txt = $1;
 		
-		assert $line =~ /^([ \^\+\.]|\([а-я]|$)/, "";
-		assert $txt =~ /^([A-Za-z \+\-\^\(#\),!\/]+)$/, "";
+		$line =~ /^([ \^\+\.]|\([а-я]|$)/ or fail;
+		$txt =~ /^([A-Za-z \+\-\^\(#\),!\/]+)$/ or fail;
 		
         $txt = parse_text_russian ($txt);
 		
@@ -2937,7 +2960,7 @@ sub parse_text_common {
         
         $txt =~ s/  +/ /g; # Лишние пробелы
         
-        assert ( !$$italic_ref, "" );
+        !$$italic_ref or fail;
         my $tmp = parse_text_tango ( $txt, '\^\^' ); # Выделить другую общую подфункцию для текста в {..} и танго.
         
         $res .= " " if $res !~ /(^| )$/;
@@ -2968,7 +2991,8 @@ sub parse_tango_title {
         if ( $line =~ s/^\@[\dL\@]// ) {
             my $abbr = $&;
             
-            assert( defined $tan_title_abbrevs{$abbr}, "tan_title_abbrevs: Unknown abbr: $abbr");
+            defined $tan_title_abbrevs{$abbr}
+                or fail "tan_title_abbrevs: Unknown abbr: $abbr";
             
             my $tmp = $tan_title_abbrevs{$abbr};
             
@@ -3017,7 +3041,8 @@ sub parse_tango_title {
             ($line, $res) = parse_text_common ( $line, $res, \$italic );
         }
         
-        assert($line ne $line_prev, "Infinite loop: '$line' ne '$line_prev'");
+        $line ne $line_prev 
+            or fail "Infinite loop: '$line' ne '$line_prev'";
     }
     
     if ( $italic ) {
@@ -3034,9 +3059,9 @@ sub format_kunref {
     my $objs = undef;
     if ( $n == -1 ) {
         # Check #75
-        assert ( @{$objects->{'kuns'}} >= 1, "");
-        assert defined $objects->{'kuns'}->[0], "";
-        assert ref($objects->{'kuns'}->[0]) eq 'HASH', "";
+        @{$objects->{'kuns'}} >= 1 or fail;
+        defined $objects->{'kuns'}->[0] or fail;
+        ref($objects->{'kuns'}->[0]) eq 'HASH' or fail;
         $objs = [make_text_obj('tango_kun', $objects->{'kuns'}->[0]->{'main'})];
     } else {
         $objs = $objects->{'tango_kuns'}->[$n];
@@ -3060,7 +3085,7 @@ sub format_kunref {
                 $tmp .= atext_italic("реже")." ";
             }
             else {
-                assert ( 0, "Unknown mod: '$mod'");
+                fail "Unknown mod: '$mod'";
             }
         }
         
@@ -3106,7 +3131,7 @@ sub parse_compounds {
             $comp_def_obj->{'tango_id'} = $tango_id;
             $comp_def_obj->{'marker'} = $marker;
             
-            arr_ref_push ( $res->{$row_num}, $comp_def_obj );
+            ref_push  $res->{$row_num}, $comp_def_obj;
         }
         elsif ( /^(\d+|N):{(\d+)}$/ ) { # 2:{19}
             my $row_num = $1;
@@ -3118,10 +3143,10 @@ sub parse_compounds {
             $comp_def_obj->{'marker'} = '';
             $comp_def_obj->{'msgid'} = $2;
             
-            arr_ref_push ( $res->{$row_num}, $comp_def_obj );
+            ref_push  $res->{$row_num}, $comp_def_obj;
 		}
         else {
-            assert(0, "parse_compounds: wrong chunk: '$_'");
+            fail "parse_compounds: wrong chunk: '$_'";
         }
     }
     
@@ -3143,12 +3168,12 @@ sub parse_concise {
 sub parse_tango_kuns {
     my ($tango_kuns_chunk) = @_;
     
-    assert ( defined $tango_kuns_chunk, "");
+    defined $tango_kuns_chunk or fail;
     
     return if $tango_kuns_chunk eq "";
     
     foreach (split /\//, $tango_kuns_chunk) {
-        arr_ref_push $objects->{'tango_kuns'}, parse_tango_kun($_);
+        ref_push $objects->{'tango_kuns'}, parse_tango_kun($_);
     }
 }
 
@@ -3181,7 +3206,7 @@ sub parse_tango_kun {
             # Do nothing
         }
         
-        assert $line ne $line_prev, "Inf loop: '$line'";
+        $line ne $line_prev or fail "Inf loop: '$line'";
     }
     
     return \@res;
@@ -3204,6 +3229,8 @@ sub parse_tan {
     my ($tan_row) = @_;
     
     my $tan_obj; # результат
+    
+    $tan_obj->{'nomer'} = $tan_row->{'Nomer'};
     
     $tan_obj->{'word'} = parse_tan_word ($tan_row);
     
@@ -3272,10 +3299,12 @@ sub parse_tan_word {
 				$txt =~ s/'($|\))/t_/g; # ' означает маленькое цу
 				# Но также ' означает "твёрдый знак". n'a
                 # Tango:  ka:ten'wo:ru
-                assert $txt !~ /'[^aouieyw]/, "$txt"; # n'a is ok. n'[^aouiey] is strange
+                $txt !~ /'[^aouieyw]/  # n'a is ok. n'[^aouiey] is strange
+                     or fail "$txt";
 				
 				
-				assert $txt !~ /ye/, ""; # означает маленькое цу в других местах
+				$txt !~ /ye/  # означает маленькое цу в других местах
+				    or fail;
 								
 				$txt =~ s/qi/$iteration_mark/g;
 				
@@ -3289,9 +3318,10 @@ sub parse_tan_word {
                 $slot[ @slot ] .= make_kanji( $kanji_id );
             }
             else {
-                assert(0, "Wrong kana: '$kana' ('$kana_orig') in tango ".$tan_row->{'Nomer'});
+                fail "Wrong kana: '$kana' ('$kana_orig') in tango ".$tan_row->{'Nomer'};
             }
-            assert ($kana ne $kana_prev, "");
+            
+            $kana ne $kana_prev or fail;
         } # end of while
     }
     my $word = "";
@@ -3299,7 +3329,7 @@ sub parse_tan_word {
     foreach ( 0..10 ) {
     	$word .= $slot[$_] if $slot[$_];
 	}
-	assert !defined $slot[11], "";
+	!defined $slot[11] or fail;
     # Слот 8: Tango: ippammeireienzankiko: #167##1061##471##875#
     # Слот 9: Tango: genkinjido:yokinshiharaiki #2760##630##1091##2451##471#
     # Слот 10: Tango: cho:semminshushugijimminkyo:wakoku #1199##503##1455##2649##570##2948#
@@ -3369,7 +3399,7 @@ sub parse_tan_rus {
         $meaning->{'text'} = parse_text_tango( $line, undef, $result ); # parse
         $meaning->{'pale'} = 1 if $pale;
         
-        arr_ref_push( $result->{'meanings'}, $meaning);
+        ref_push  $result->{'meanings'}, $meaning;
     }
     
     return $result;
@@ -3477,12 +3507,12 @@ sub parse_kana {
             push @res, $s.'_'; $s = ''; next;
         }
         
-        assert ($txt_prev ne $txt, "Infinite loop");
+        $txt_prev ne $txt or fail "Infinite loop";
     }
     
-    assert ( $s eq '', "romaji parse: tail: $s;" );
+    $s eq '' or fail "romaji parse: tail: $s;";
     
-    add_children $res, \@res;
+    add_child $res, @res;
     
     return $res;
 }

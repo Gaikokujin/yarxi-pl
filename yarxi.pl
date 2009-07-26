@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl -W
 
 # Yarxi.PL - Консольный интерфейс к словарю Яркси.
 #
@@ -25,17 +25,12 @@
 use strict;
 use DBI;
 use utf8;
-use Encode;
-
-my $dirref;
+use FindBin;
+use File::Basename;
 
 sub BEGIN {
-    # Определяем директорию, в которой находится скрипт
-    $dirref = $0;
-    $dirref =~ s/[^\/\\]*$//;
-
     # Добавляем эту директорию в список для поиска.
-    push @INC, $dirref;
+    push @INC, $FindBin::Bin;
 
     $| = 1; # Без кэширования вывода.
 }
@@ -45,11 +40,13 @@ use JDFormatter;
 use JDPrinterC;
 #----------------------------------------------------------------------
 
-my $db_filename = "$dirref/yarxi_u.db";
+chdir $FindBin::Bin
+    or fail "Failed to change dir to ".$FindBin::Bin;
 
-assert -f $db_filename, "Can't find database file: '$db_filename'";
+my $db_filename = "yarxi_u.db";
 
-my $dbi_path = "dbi:SQLite:dbname=${dirref}${db_filename}";
+-f $db_filename or fail "Can't find database file: '$db_filename'";
+
 our $dbh = DBI->connect( "dbi:SQLite:dbname=$db_filename", "", "");
 
 #----------------------------------------------------------------------
@@ -60,7 +57,7 @@ my $search_show_all = 0;
 sub read_config_file {
     my ($file) = @_;
     
-    open FILE, $file or assert(0, "Can't open file '$file'");
+    open FILE, $file or fail "Can't open file '$file'";
     
     while (<FILE>) {
         chomp; s/^\s+//; s/\s+$//; # Remove spaces
@@ -77,11 +74,11 @@ sub read_config_file {
             JDFormatter::set_cur_trans_kind( $value );
         }
         elsif ( $key eq 'scheme' ) {
-            my $dir = $file; $dir =~ s/\/[^\/]+$//; # Выделяем каталог
+            my $dir = dirname($file);
             read_colorscheme_file( "$dir/$value" );
         }
         else {
-            assert (0, "Не могу понять строку: '$_'");
+            fail "Не могу понять строку: '$_'";
         }
     }
 }
@@ -89,7 +86,7 @@ sub read_config_file {
 sub read_colorscheme_file {
     my ($file) = @_;
     
-    open FILE, $file or assert(0, "Can't open file '$file'");
+    open FILE, $file or fail "Can't open file '$file'";
 
     my %colors;
     my %pale_map;
@@ -111,7 +108,7 @@ sub read_colorscheme_file {
             }
             else {
             # Определение через уже добавленный цвет
-                assert defined $colors{$value}, "Цвет ещё не определён: '$value'";
+                defined $colors{$value} or fail "Цвет ещё не определён: '$value'";
                 
                 $colors{$key} = $colors{$value};
             }
@@ -122,14 +119,14 @@ sub read_colorscheme_file {
             my $value = $2;
             
             if ( $key !~ /^\[/ ) {
-                assert defined $colors{$key}, "Цвет ещё не определён: '$key'";
+                defined $colors{$key} or fail "Цвет ещё не определён: '$key'";
                 $key = $colors{$key};
             } else {
                 $key = "\033".$key."m";
             }
             
             if ( $value !~ /^\[/ ) {
-                assert defined $colors{$value}, "Цвет ещё не определён: '$value'";
+                defined $colors{$value} or fail "Цвет ещё не определён: '$value'";
                 $value = $colors{$value};
             } else {
                 $value = "\033".$value."m";
@@ -138,7 +135,7 @@ sub read_colorscheme_file {
             $pale_map{$key} = $value;
         }
         else {
-            assert (0, "Не могу понять строку: $_");
+            fail "Не могу понять строку: $_";
         }
     }
     
@@ -147,14 +144,14 @@ sub read_colorscheme_file {
 
 sub article {
     my ($num) = @_;
-    assert ($num eq int($num), "");    
+    $num eq int($num) or fail;
     
     JDFormatter::clear();
     
     # Формирование статьи
     my $document = format_article($num);
     if ( !$document ) { # Нет такой статьи
-        print encode_utf8("Нет такой статьи (Kanji $num)\n");
+        say("Нет такой статьи (Kanji $num)\n");
         return 0;
     }
     
@@ -170,15 +167,15 @@ sub article {
 
 sub tango_alone {
     my ($num) = @_;
-    assert $num, "";
-    assert ($num eq int($num), "");
+    $num or fail;
+    $num eq int($num) or fail;
     
     JDFormatter::clear();
     
     # Формирование статьи
     my $document = format_tango_alone($num);
     if ( !$document ) { # Нет такой статьи
-        print encode_utf8("Нет такой статьи (Tango $num)\n");
+        say("Нет такой статьи (Tango $num)\n");
         return 0;
     }
     
@@ -203,6 +200,7 @@ sub do_test {
     while ( 1 ) {
         eval {
             while ( 1 ) {
+                # ANALYSIS:
                 print STDERR ".";
                 print STDERR "  $i\n" if ( $i % 1000 == 0 );
                 article($i) or die "No more articles.";
@@ -212,6 +210,8 @@ sub do_test {
         if ($@) {
             my $res = '';
             while  ($res !~ /^[yn]$/i ) {
+                #exit 0; # ANALYSIS
+                
                 print STDERR "\n>>$i<<\n";
                 print STDERR "$@\n";
                 print STDERR "Continue?(y/n) ";
@@ -235,6 +235,7 @@ sub do_test2 {
     while (1) {
         eval {
             while ( 1 ) {
+                # ANALYSIS:
                 print STDERR ".";
                 print STDERR "  $i\n" if ( $i % 1000 == 0 );
                 tango_alone($i) or die "No more articles";
@@ -246,8 +247,10 @@ sub do_test2 {
             while  ($res !~ /^[yn]$/i ) {
                 print STDERR "\n>>$i<<\n";
                 print STDERR "$@\n";
-                print STDERR "Continue?(y/n) ";
+                #last if $i == 45252;
+                #exit 0; # ANALYSIS                
                 
+                print STDERR "Continue?(y/n) ";
                 $res = getc();
             }
             last if ( $res =~ /^[n]$/i );
@@ -322,9 +325,9 @@ sub kanji_results {
     my $first = shift @rows;
     article ( $first->{'Nomer'} );
     if ( @rows ) {
-        print encode_utf8("\nТакже найдено в статьях: ");
+        say("\nТакже найдено в статьях: ");
         for (my $i=0; $i<100 && @rows; $i++ ) {
-            print encode_utf8( chr((shift @rows)->{'Uncd'})." " );
+            say( chr((shift @rows)->{'Uncd'})." " );
         }
         say " плюс ещё ".int(@rows)." статей..." if ( @rows );
         print "\n";
@@ -519,27 +522,46 @@ sub search_compound {
 
 sub print_kana_table {
     say <<HEREDOC;
-ва  ра   я  ма  ха  на  та  са  ка   а
-わ  ら  や  ま  は  な  た  さ  か  あ - а
- н  り   ю  み  ひ  に  ち  し  き  い - и
-ん  る  ゆ  む  ふ  ぬ  つ  す  く  う - у
- о  れ   ё  め  へ  ね  て  せ  け  え - э
-を  ろ  よ  も  ほ  の  と  そ  こ  お - о
+ ва  ра   я  ма  ха  на  та  са  ка   а
+ わ  ら  や  ま  は  な  た  さ  か  あ - а
+  н  り   ю  み  ひ  に  ち  し  き  い - и
+ ん  る  ゆ  む  ふ  ぬ  つ  す  く  う - у
+  о  れ   ё  め  へ  ね  て  せ  け  え - э
+ を  ろ  よ  も  ほ  の  と  そ  こ  お - о
+
+          я    ба па    да   дза  га  а
+ ゎ      ゃ    ば ぱ    だ   ざ  が  ぁ - а
+ ゐ       ю    び ぴ    ぢ   じ  ぎ  ぃ - и
+ ゑ      ゅ    ぶ ぷ   っづ  ず  ぐ  ぅ - у
+ ゝ       ё    べ ぺ    で   ぜ  げ  ぇ - э
+ ゞ      ょ    ぼ ぽ    ど   ぞ  ご  ぉ - о
 -------------------------------------------
-ВА  РА   Я  МА  ХА  НА  ТА  СА  КА   А
-ワ  ラ  ヤ  マ  ハ  ナ  タ  サ  カ  ア - А
- Н  リ   Ю  ミ  ヒ  ニ  チ  シ  キ  イ - И
-ン  ル  ユ  ム  フ  ヌ  ツ  ス  ク  ウ - У
- О  レ   Ё  メ  ヘ  ネ  テ  セ  ケ  エ - Э
-ヲ  ロ  ヨ  モ  ホ  ノ  ト  ソ  コ  オ - О
+ ВА  РА   Я  МА  ХА  НА  ТА  СА  КА   А
+ ワ  ラ  ヤ  マ  ハ  ナ  タ  サ  カ  ア - А
+  Н  リ   Ю  ミ  ヒ  ニ  チ  シ  キ  イ - И
+ ン  ル  ユ  ム  フ  ヌ  ツ  ス  ク  ウ - У
+  О  レ   Ё  メ  ヘ  ネ  テ  セ  ケ  エ - Э
+ ヲ  ロ  ヨ  モ  ホ  ノ  ト  ソ  コ  オ - О
 -------------------------------------------
+ ヮ       Я    БА ПА    ДА   ДЗА ГА   А
+ ヰ      ャ    バ パ    ダ   ザ  ガ  ァ - А
+ ヱ       Ю    ビ ピ    ヂ   ジ  ギ  ィ - И
+ ヴ      ュ    ブ プ   ッヅ  ズ  グ  ゥ - У
+ ヵ       Ё    ベ ペ    デ   ゼ  ゲ  ェ - Э
+ ヶ      ョ    ボ ポ    ド   ゾ  ゴ  ォ - О
+
 HEREDOC
+    
+    #my $start = ord("あ")-3;
+    #for ( my $i=$start; $i <  $start+200; $i++ ) {
+        #say "(".chr($i).") - $i\n";
+    #}
     return;
 }
 #----------------------------------------------------------------------
 
 sub about {
-    print encode_utf8 ( <<HEREDOC )
+    say ( <<HEREDOC )
 Yarxi.PL - 2007-2008 (c) Андрей Смачёв aka Biga.
 
 Консольный интерфейс к словарю Yarxi.
@@ -591,7 +613,7 @@ yarxi.pl [опция] [что искать] [-a]
   -kr  <абв>    Поиск по значениям кунъёми.
   -kun <aiueo>  Поиск иероглифов с кунъёми "aiueo".
   -on  <aiueo>  Поиск иероглифов с онъёми "aiueo".
-  -r   <абв     Поиск по "базовым значениям" иероглифов, значениям
+  -r   <абв>    Поиск по "базовым значениям" иероглифов, значениям
                  кунъёми и составных слов.
   -rn  <абв>    Поиск только по "базовым значениям" иероглифов.
   -t   <NUM>    Показ составного слова с номером NUM в базе данных.
@@ -614,11 +636,11 @@ HEREDOC
 ### BEGIN ###
 
 # Читаем конфиги
-if ( -f "$dirref/yarxi.conf") { # Файл конфига в директории программы
-    read_config_file( "$dirref/yarxi.conf" );
+if ( -f "yarxi.conf") { # Файл конфига в директории программы
+    read_config_file( "yarxi.conf" );
 }
-if ( -f "~/.yarxi/yarxi.conf") { # Файл конфига в директории пользователя
-    read_config_file( "~/.yarxi/yarxi.conf" );
+if ( -f $ENV{HOME}."/.yarxi/yarxi.conf") { # Файл конфига в директории пользователя
+    read_config_file( $ENV{HOME}."/.yarxi/yarxi.conf" );
 }
 
 #($term_cols, $term_lines) = get_term_size();
@@ -628,7 +650,8 @@ if ( @ARGV == 0 ) {
     about();
     say "\nДля просмотра возможностей, используйте опцию '--help'\n\n";
 }
-my @args = map decode_utf8($_), @ARGV;
+my @args = @ARGV;
+utf8::decode($_) foreach @args;
 
 # Читаем аргументы в два прохода
 # В первом ищем флаги
@@ -646,7 +669,7 @@ while ( my $arg = shift @args ) {
     elsif ( $arg eq '-t' ) { # Tango
         $arg = shift @args;
         
-        assert $arg eq int($arg), "Should be numeric: '$arg'";
+        $arg eq int($arg) or fail "Should be numeric: '$arg'";
         
         tango_alone ( $arg ) ;
     }
@@ -676,8 +699,8 @@ while ( my $arg = shift @args ) {
     }
     elsif ( $arg eq '-u' ) {
         $arg = shift @args;
-        assert defined $arg && $arg =~ /^\d+$/,
-                "Ключ -u ожидает число после себя.";
+        defined $arg && $arg =~ /^\d+$/
+                or fail "Ключ -u ожидает число после себя.";
         search_unicode( $arg ) or say "Ничего не найдено (".chr($arg)." - $arg).\n";
     }
     elsif ( $arg eq 'test' ) {
@@ -690,6 +713,9 @@ while ( my $arg = shift @args ) {
         $start = 1 if !defined $start;
         do_test2($start);
     }
+	elsif ( $arg eq 'colormap' ) {
+		colors_table();
+	}
     elsif ( $arg eq 'kanatable' ) {
         print_kana_table();
     }
@@ -715,6 +741,9 @@ while ( my $arg = shift @args ) {
     }
     else {
         errmsg ("Непонятный параметр: '$arg'");
+        if ( $arg =~ /^.$/ ) {
+            errmsg ("'$arg' - ".ord($arg));
+        }
     }
 }
 
