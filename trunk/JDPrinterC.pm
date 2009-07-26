@@ -25,7 +25,6 @@ package JDPrinterC;
 use strict;
 use utf8;
 use Carp;
-use Encode;
 use JDCommon;
 use JD_AText;
 
@@ -86,7 +85,7 @@ my %console_codes = (
 sub console_code {
     my ($name) = @_;
     
-    assert  defined $console_codes{$name}, "Wrong color code name: '$name'";
+    defined $console_codes{$name} or fail "Wrong color code name: '$name'";
     
     return "\033".$console_codes{$name}."m";
 }
@@ -155,11 +154,11 @@ $colors{$_} = console_code($colors{$_}) foreach ( keys %colors );
 # Превращает имя цвета в код
 sub color ( $ ) {
     my ($color) = @_;
-    assert ( defined $color, "" );
+    defined $color or fail;
     
     return $color if ( $color =~ /^\033/ );
     
-    assert ( exists($colors{$color}), "Wrong color name: '$color'" );
+    exists $colors{$color} or fail "Wrong color name: '$color'";
     
     return $colors{$color};
 }
@@ -179,7 +178,10 @@ sub pale ( $ ) {
 
 # Печатает таблицу с цветами (для отладки).
 sub colors_table {
-    for ( my $i = 0; $i < 200; $i++ ) {
+    for ( my $i = 30; $i < 41; $i++ ) {
+        print "$i - >\033[${i}mTEST\033[0m<\n";
+    }
+	for ( my $i = 90; $i < 100; $i++ ) {
         print "$i - >\033[${i}mTEST\033[0m<\n";
     }
 }
@@ -193,12 +195,15 @@ sub set_color_map {
 
 # Вычисление реальной длины строки в терминале, т. е. с учётом "пустых"
 # символов (цветовые коды) и широких символов (иероглифы и кана).
+
+# TODO: libtext-charwidth-perl
+
 sub size {
     my ($txt) = @_;
     
 	$txt =~ s/\033\[[^m]*m//g; # убираем все цвета
-    assert $txt !~ /\033/, "";
-    assert $txt !~ /[\^#]/, ""; # Не применяется на atext
+    $txt !~ /\033/ or fail;
+    $txt !~ /[\^#]/ or fail; # Не применяется на atext
    
     my $res = 0; # результат - длина строки
     
@@ -217,11 +222,11 @@ sub size {
             $res += 2; # иероглифы
         }
         else {
-            assert(0, "size: unknown: $c $code");
+            fail "size: unknown: $c $code";
         }
     }
     
-    assert ( $res eq int($res), "Result should be int!" );
+    $res eq int($res) or fail "Result should be int!";
     
     return $res;
 }
@@ -313,7 +318,7 @@ sub print_object {
         $res = print_atext($obj, $cstack);
     }
     elsif ( $ref eq 'HASH' ) { # объект
-        assert ( defined $obj->{'type'}, "Invalid object" );
+        defined $obj->{'type'} or fail "Invalid object";
         
         my $type = $obj->{'type'};
         
@@ -324,11 +329,11 @@ sub print_object {
             $res = print_htable($obj, $cstack);
         }
         else {
-            assert (0, "Unknown object type: '$type'");
+            fail "Unknown object type: '$type'";
         }
     }
     else {
-        assert ( 0, "Unhandled reftype: '$ref'" );
+        fail "Unhandled reftype: '$ref'";
     }
     
     return $res;
@@ -345,7 +350,7 @@ sub object_pale {
         $_[0] = atext_pale($obj);
     }
     elsif ( $ref eq 'HASH' ) { # объект
-        assert ( defined $obj->{'type'}, "Invalid object" );
+        defined $obj->{'type'} or fail "Invalid object";
         
         my $type = $obj->{'type'};
         
@@ -353,19 +358,19 @@ sub object_pale {
             $_[0]->{'pale'} = 1;
         }
         else {
-            assert (0, "Unknown object type: '$type'");
+            fail "Unknown object type: '$type'";
         }
     }
     else {
-        assert ( 0, "Unhandled reftype: '$ref'" );
+        fail "Unhandled reftype: '$ref'";
     }
 }
 
 sub print_atext {
     my ($atxt, $cstack) = @_;
     
-    assert defined $atxt, "";
-    assert defined $cstack, "";
+    defined $atxt or fail;
+    defined $cstack or fail;
         
     my $res = '';
     
@@ -403,7 +408,7 @@ sub print_atext {
                 my $mod = undef;
                 if ($tag eq 'P') { $mod = 'pale' } 
                 elsif ($tag eq 'I') { $mod = 'italic' }
-                else { assert(0, "") }
+                else { fail }
                 
                 my $cur_color = cur_color($cstack);
                 my $color = push_cstack ($cstack, $mod);
@@ -413,7 +418,7 @@ sub print_atext {
                 my $mod = undef;
                 if ($tag eq 'PX') { $mod = 'pale' } 
                 elsif ($tag eq 'IX') { $mod = 'italic' }
-                else { assert(0, "") }
+                else { fail }
                 
                 my $cur_color = cur_color($cstack);
                 my $color = pop_cstack ($cstack, $mod);
@@ -432,11 +437,11 @@ sub print_atext {
                 # Do nothing
             }
             else {
-                assert (0, "Unknown or wrong tag: '$tag'");
+                fail "Unknown or wrong tag: '$tag'";
             }
         }
         
-        assert ( $atxt ne $atxt_prev, "Inf loop: '$atxt'");
+        $atxt ne $atxt_prev or fail "Inf loop: '$atxt'";
     }
     
     # Мог остаться незакрытый италик
@@ -449,9 +454,9 @@ sub print_atext {
     }
     
     # Проверяем, что не осталось открытых цветов
-    assert !@{$cstack->{'colors'}}, "";
-    assert !$cstack->{'pale'}, "";
-    assert !$cstack->{'italic'}, "";
+    !@{$cstack->{'colors'}} or fail;
+    !$cstack->{'pale'} or fail;
+    !$cstack->{'italic'} or fail;
     
     return $res;
 }
@@ -467,11 +472,11 @@ sub pop_cstack {
     
     if ( $what eq 'color' ) {
         my $colors = $cstack->{'colors'};
-        assert ( @$colors, "Color stack should be not empty");
+        @$colors or fail "Color stack should be not empty";
         pop @$colors;
     }
     elsif ( $what eq 'pale' ) {
-        assert $cstack->{'pale'} > 0, "";
+        $cstack->{'pale'} > 0 or fail;
         $cstack->{'pale'}-- if $cstack->{'pale'} > 0;
     }
     elsif ( $what eq 'italic' ) {
@@ -484,8 +489,8 @@ sub pop_cstack {
 
 sub push_cstack {
     my ($cstack, $color) = @_;
-    assert defined $cstack, "";
-    assert defined $color, "";
+    defined $cstack or fail;
+    defined $color or fail;
     
     if ( $color eq 'pale' ) {
         $cstack->{'pale'}++;
@@ -494,14 +499,14 @@ sub push_cstack {
         $cstack->{'italic'}++;
     }
     else {
-        arr_ref_push $cstack->{'colors'}, color($color);
+        ref_push $cstack->{'colors'}, color($color);
     }
     return cur_color($cstack);
 }
 
 sub cur_color {
     my ($cstack) = @_;
-    assert defined $cstack, "";
+    defined $cstack or fail;
     
     my $res = $nocolor;
     
@@ -524,8 +529,8 @@ sub cur_color {
 
 sub print_vtable {
     my ( $obj, $cstack ) = @_;
-    assert defined $obj && ref($obj) eq 'HASH', "";
-    assert defined $cstack && ref($cstack) eq 'HASH', "";
+    defined $obj && ref($obj) eq 'HASH' or fail;
+    defined $cstack && ref($cstack) eq 'HASH' or fail;
     
     return '' if ( !defined $obj->{'children'} || @{$obj->{'children'}} == 0 );
 

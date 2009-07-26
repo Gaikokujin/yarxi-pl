@@ -22,8 +22,9 @@ package JDCommon;
 # Fifth Floor, Boston, MA 02110-1301, USA.
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
+use strict;
 use utf8;
-use Encode;
+
 use Carp;
 
 require Exporter;
@@ -36,14 +37,14 @@ push @JDCommon::EXPORT, qw(
     
     $iteration_mark
     
-    &errmsg &assert &gotcha
+    &errmsg &fail &gotcha
     &kanji_from_unicode &max
     &say
-    &arr_ref_push &arr_ref_push_arr
+    &ref_push
     &new_dom_object
     &make_dom_object &make_text_obj
-    &add_child &add_children
-    &arrays_equal
+    &add_child
+    &arrays_equal &is_array
 );
 
 our $dbh;
@@ -57,24 +58,20 @@ our ($term_cols, $term_lines);
 sub errmsg {
     my ($msg) = @_;
 
-    $msg = encode_utf8($msg) if ( Encode::is_utf8($msg) );
-    print STDERR "\n !!! Error : $msg\n";
+    utf8::encode($msg) if utf8::is_utf8($msg);
+    print STDERR "\n !!! Error : $msg\n"; # ANALYSIS:
 }
 
-sub assert ($$) {
-    my ($bool, $msg) = @_;
-    
-    if ( !$bool ) {
-        errmsg($msg);
-        die Carp::longmess();
-    }
+sub fail {
+    errmsg( defined $_[0] ? $_[0] : "Без описания" );
+    Carp::confess();    
 }
 
-sub gotcha() { # inline?
-    assert( 0 , "Gotcha!"); # Для отлова хитрых ветвей кода.
+sub gotcha ( ) {
+    fail "Gotcha!"; # Для отлова хитрых ветвей кода.
 }
 
-sub kanji_from_unicode {
+sub kanji_from_unicode ( $ $ ) {
     my ($nomer, $unicode) = @_;
     return chr($unicode);
 }
@@ -83,35 +80,15 @@ sub max ($$) {
     return ($_[1] > $_[0]) ? $_[1] : $_[0];
 }
 
-sub say {
+sub say ($) {
     my ($txt) = @_;
     
-    print encode_utf8($txt);
+    utf8::encode($txt);
+    
+    print $txt;
 }
 
-sub arr_ref_push {
-    my ($arr_ref, $obj) = @_;
-    
-    return $_[0] = [$obj] if !defined($arr_ref);
-    
-    assert ref($arr_ref) eq 'ARRAY', "Not an ARRAY REF: ".ref($arr_ref);
-    
-    push @$arr_ref, $obj;
-}
-
-sub arr_ref_push_arr {
-    my $to_push = $_[1];
-
-    if ( ref($to_push) ne 'ARRAY' ) {
-        errmsg("arr_ref_push_arr: pushing not array\n");
-        Carp::confess();
-    }
-
-    foreach ( @$to_push ) {
-        assert defined, "";
-        arr_ref_push ($_[0], $_);
-    }
-}
+sub ref_push ($@) { push @{$_[0] ||= []}, @_[1..$#_] }
 
 # Data Object Model functions
  
@@ -119,12 +96,13 @@ sub new_dom_object {
     if ( @_ <= 2 ) { # Two parameters
         my ($type, $descr) = @_;
         
-        my $tmp = {'type' => $type};
-        defined $descr and $tmp->{'descr'} = $descr;
+        my $obj = { 'type' => $type };
+        $obj->{'descr'} = $descr if defined $descr;
         
-        return $tmp;
-    } else {
-        assert ( @_ % 2 == 1 , "Неверное число аргументов" ); # Нечётное число аргументов > 2
+        return $obj;
+    }
+    else {
+        @_ % 2 == 1  or fail "Неверное число аргументов";
         my ($type, %init) = @_;
         $init{'type'} = $type;
         return \%init;
@@ -135,31 +113,17 @@ sub new_dom_object {
 sub make_text_obj {
     my ($type, $text, %other) = @_;
     
-    my $res;
-    if ( %other ) {
-        $res = \%other;
-        $res->{'type'} = $type;
-    } else {
-        $res = new_dom_object ( $type );
-    }
-    $res->{'text'} = $text;
+    my $obj = \%other;
+    $obj->{'type'} = $type;
+    $obj->{'text'} = $text;
     
-    return $res;
+    return $obj;
 }
 
 sub add_child {
-    my ($obj, $child) = @_;
+    my ($obj, @children) = @_;
     
-    arr_ref_push ($obj->{'children'}, $child);
-}
-
-sub add_children {
-    my ($obj, $arr_ref) = @_;
-    
-    foreach ( @$arr_ref ) {
-        next unless defined;
-        add_child ($obj, $_);
-    }
+    ref_push $obj->{'children'}, @children;
 }
 
 sub arrays_equal {
@@ -167,11 +131,15 @@ sub arrays_equal {
     
     return 0 if @$arr1 != @$arr2; # сравниваем размеры
     
-    my $i;
-    for ($i=0; defined $arr1->[$i]; $i++) {
+    for (my $i=0; defined $arr1->[$i]; $i++) {
         return 0 if $arr1->[$i] ne $arr2->[$i];
     }
-    return 1;
+    
+    return 1; # одинаковы
+}
+
+sub is_array ( $ ) { # TODO: use everywhere
+    return ref($_[0]) eq 'ARRAY';
 }
 
 #----------------------------------------------------------------------

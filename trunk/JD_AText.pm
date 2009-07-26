@@ -25,7 +25,6 @@ package JD_AText;
 use strict;
 use utf8;
 use Carp;
-use Encode;
 use JDCommon;
 
 require Exporter;
@@ -39,21 +38,20 @@ push @JD_AText::EXPORT, qw(
     &atext_lcfirst &atext_ucfirst &atext_upper
 );
 
-our $A = '^';
-our $Z = '#';
+our $A = '^'; # Начало тэга
+our $Z = '#'; # Конец тэга
 
-my $C_pale = $A.'P'.$Z;
-my $C_pale_off = $A.'PX'.$Z;
-my $C_italic = $A.'I'.$Z;
+my $C_pale       = $A.'P'.$Z;
+my $C_pale_off   = $A.'PX'.$Z;
+my $C_italic     = $A.'I'.$Z;
 my $C_italic_off = $A.'IX'.$Z;
-my $C_off = $A.'CX'.$Z;
-
+my $C_off        = $A.'CX'.$Z;
 
 sub atext_plain {
     my ($txt) = @_;
     
-    assert( $txt =~ /^[\w ,;:\.!\?\-\+=%\(\)\[\]\<\>""«»\/´'~]*$/, 
-            "Wrong symbols in plain text: '$txt'");
+    $txt =~ /^[\w ,;:\.!\?\-\+=%\(\)\[\]\<\>""«»\/´'~]*$/
+            or fail "Wrong symbols in plain text: '$txt'";
 
     return $txt;
 }
@@ -110,7 +108,7 @@ sub atext_tango {
 sub C_color {
     my ($color) = @_;
     
-    assert ( $color =~ /^[a-z1-9_]+$/, "Bad color name" );
+    $color =~ /^[a-z1-9_]+$/ or fail "Bad color name";
     
     return $A.'C'.$color.$Z;
 }
@@ -128,7 +126,7 @@ my $regexp_f = "((\\${A}[^\\$Z]*\\$Z|[«»])*)([^\\$A«»])";
 sub atext_lcfirst {
     my ($txt) = @_;
     
-    assert defined $txt && ref($txt) eq '', "";
+    defined $txt && ( ref($txt) eq '' ) or fail;
     
     $txt =~ s/^$regexp_f/$1\l$3/; # \l stands for lcfirst
     
@@ -138,7 +136,7 @@ sub atext_lcfirst {
 sub atext_ucfirst {
     my ($txt) = @_;
     
-    assert defined $txt && ref($txt) eq '', "";
+    defined $txt && ( ref($txt) eq '' ) or fail;
     
     $txt =~ s/^$regexp_f/$1\u$3/; # \u stands for ucfirst
     
