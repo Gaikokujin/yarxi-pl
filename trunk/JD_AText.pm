@@ -5,7 +5,7 @@ package JD_AText;
 # Оригинальная программа и база данных словаря - (c) Вадим Смоленский.
 # (http://www.susi.ru/yarxi/)
 #
-# Copyright (C) 2007-2008  Андрей Смачёв aka Biga.
+# Copyright (C) 2007-2009  Андрей Смачёв aka Biga.
 #
 # This program is free software: you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -29,13 +29,13 @@ use JDCommon;
 
 require Exporter;
 @JD_AText::ISA = qw(Exporter);
-# Экспортирование символов
+# Экспорт символов
 push @JD_AText::EXPORT, qw(
-    &atext_plain &atext_tostr
-    &atext_italic &atext_italic_start &atext_italic_stop
-    &atext_kanji &atext_tango
-    &atext_pale &atext_colored
-    &atext_lcfirst &atext_ucfirst &atext_upper
+	&atext_plain &atext_tostr
+	&atext_italic &atext_italic_start &atext_italic_stop
+	&atext_kanji &atext_tango
+	&atext_pale &atext_colored
+	&atext_lcfirst &atext_ucfirst &atext_upper
 );
 
 our $A = '^'; # Начало тэга
@@ -48,97 +48,97 @@ my $C_italic_off = $A.'IX'.$Z;
 my $C_off        = $A.'CX'.$Z;
 
 sub atext_plain {
-    my ($txt) = @_;
-    
-    $txt =~ /^[\w ,;:\.!\?\-\+=%\(\)\[\]\<\>""«»\/´'~]*$/
-            or fail "Wrong symbols in plain text: '$txt'";
+	my ($txt) = @_;
 
-    return $txt;
+	$txt =~ /^[\w ,;:\.!\?\-\+=%\(\)\[\]\<\>""«»\/´'~]*$/
+			or fail "Wrong symbols in plain text: '$txt'";
+
+	return $txt;
 }
 
 sub atext_tostr {
-    my ($txt) = @_;
+	my ($txt) = @_;
 
-    my $regexp_cl = "\\${A}[CPIT][^\\$Z]*\\$Z";    
-    $txt =~ s/$regexp_cl//g;
-    
-    $regexp_cl = "\\${A}K\\d{4}(.)\\$Z";    
-    $txt =~ s/$regexp_cl/$1/g;
-    
-    return $txt;
+	my $regexp_cl = "\\${A}[CPIT][^\\$Z]*\\$Z";
+	$txt =~ s/$regexp_cl//g;
+
+	$regexp_cl = "\\${A}K\\d{4}(.)\\$Z";
+	$txt =~ s/$regexp_cl/$1/g;
+
+	return $txt;
 }
 
 sub atext_pale {
-    my ($txt) = @_;
-    
-    return $C_pale.$txt.$C_pale_off;
+	my ($txt) = @_;
+
+	return $C_pale.$txt.$C_pale_off;
 }
 
 sub atext_italic_start() { return $C_italic }
 sub atext_italic_stop() { return $C_italic_off }
 
 sub atext_italic {
-    my ($txt) = @_;
-    
-    atext_plain($txt); # Проверка
-    
-    return $C_italic . $txt . $C_italic_off;
+	my ($txt) = @_;
+
+	atext_plain($txt); # Проверка
+
+	return $C_italic . $txt . $C_italic_off;
 }
 
 sub atext_kanji {
-    my ($kanji, $id) = @_;
+	my ($kanji, $id) = @_;
 
-    # ^K 1234 Ж #
+	# ^K 1234 Ж #
 
-    if ( defined $id ) {
-        return $A.'K'.sprintf('%04d', int($id)).$kanji.$Z;
-    } else {
-        return $kanji;
-    }
+	if ( defined $id ) {
+		return $A.'K'.sprintf('%04d', int($id)).$kanji.$Z;
+	} else {
+		return $kanji;
+	}
 }
 
 sub atext_tango {
-    my ($id, $text) = @_;
+	my ($id, $text) = @_;
 
-    # ^T 1234# text ^TX#
-    
-    return $A.'T'.sprintf('%05d', int($id)).$Z . $text .$A.'TX'.$Z;
+	# ^T 1234# text ^TX#
+
+	return $A.'T'.sprintf('%05d', int($id)).$Z . $text .$A.'TX'.$Z;
 }
 
 sub C_color {
-    my ($color) = @_;
-    
-    $color =~ /^[a-z1-9_]+$/ or fail "Bad color name";
-    
-    return $A.'C'.$color.$Z;
+	my ($color) = @_;
+
+	$color =~ /^[a-z1-9_]+$/ or fail "Bad color name";
+
+	return $A.'C'.$color.$Z;
 }
 
 sub atext_colored {
-    my ($color, $txt) = @_;
-    
-    return $txt if $txt =~ /^\s*$/; # Не изменяем пустую строку.
-    
-    return C_color($color) . $txt . $C_off;
+	my ($color, $txt) = @_;
+
+	return $txt if $txt =~ /^\s*$/; # Не изменяем пустую строку.
+
+	return C_color($color) . $txt . $C_off;
 }
 
 my $regexp_f = "((\\${A}[^\\$Z]*\\$Z|[«»])*)([^\\$A«»])";
 
 sub atext_lcfirst {
-    my ($txt) = @_;
-    
-    defined $txt && ( ref($txt) eq '' ) or fail;
-    
-    $txt =~ s/^$regexp_f/$1\l$3/; # \l stands for lcfirst
-    
-    return $txt;
+	my ($txt) = @_;
+
+	defined $txt && ( ref($txt) eq '' ) or fail;
+
+	$txt =~ s/^$regexp_f/$1\l$3/; # \l stands for lcfirst
+
+	return $txt;
 }
 
 sub atext_ucfirst {
-    my ($txt) = @_;
-    
-    defined $txt && ( ref($txt) eq '' ) or fail;
-    
-    $txt =~ s/^$regexp_f/$1\u$3/; # \u stands for ucfirst
-    
-    return $txt;
+	my ($txt) = @_;
+
+	defined $txt && ( ref($txt) eq '' ) or fail;
+
+	$txt =~ s/^$regexp_f/$1\u$3/; # \u stands for ucfirst
+
+	return $txt;
 }
