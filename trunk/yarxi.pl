@@ -700,6 +700,10 @@ while ( my $arg = shift @args ) {
 	elsif ( $arg eq '-r' ) {
 		search_rus( shift @args ) or say "Ничего не найдено.\n";
 	}
+	elsif ( $arg =~ /^--tran(?:\=(.*))?$/ ) {
+		my $arg = $1 or shift @args;
+		JDFormatter::set_cur_trans_type( $arg );
+	}
 	elsif ( $arg eq '-u' ) {
 		$arg = shift @args;
 		defined $arg && $arg =~ /^\d+$/
