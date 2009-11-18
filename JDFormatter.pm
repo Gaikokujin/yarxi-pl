@@ -42,6 +42,8 @@ my $objects;
 my $tan_objs;
 my $dom;
 
+my $global_num; # DBG:
+
 my $cur_block;
 
 my $kanji_cache = {};
@@ -235,7 +237,10 @@ my %particles = (
 		'=87' => 'sureba',
 		'=88' => 'shitemo',
 		'=89' => 'to mo shinai',
-		'=90' => 'yaru', 
+		'=90' => 'yaru',
+		'=91' => 'to natte',
+		'=92' => 'suruna',
+		'=93' => 'ni oite',
 
 		'~0' => 'o suru',
 		'~1' => 'ga aru',
@@ -867,6 +872,7 @@ sub clear() {
 sub format_article {
 	my ($num) = @_;
 	$num eq int($num) or fail;
+	$global_num = $num;
 
 	# Берём данные из базы
 	my $row = fetch_kanji_full($num);
@@ -2400,6 +2406,9 @@ sub tango_message {
 	if ($num == 30 ) { #6282 - 鷸
 		return "Названия видов птиц см. в статье для знака ".make_kanji(1146).".";
 	}
+	if ($num == 31 ) { #3057 - 傅
+		return "Часто встречается ошибочное употребление этого знака в именах вместо ".make_kanji(3062).".";
+	}
 
 	fail "Unknown tango_message num: '$num'";
 }
@@ -2714,7 +2723,9 @@ sub parse_text_russian {
 	my $italic = 0; # Открытие-закрытие италика. Приходится протаскивать через парсер.
 
 	my $res = "";
-
+	if ( $line =~ s/^_//g) { # #1
+		($line eq '') or fail "Removed '_' but line was expected to be empty.";
+	}
 	while ($line !~ /^\s*$/ ) {
 		my $line_prev = $line;
 
@@ -2740,6 +2751,7 @@ sub parse_text_russian {
 			$res .= add_spaces( $res, $line );
 		}
 		else {
+			$line =~ s/^_//; # #219
 			($line, $res) = parse_text_common( $line, $res, \$italic );
 		}
 
@@ -2771,7 +2783,6 @@ sub parse_text_tango {
 	my $italic = 0; # Приходится протаскивать италик через весь разбор
 
 	my $res = "";
-
 	while ($line !~ /^\s*$/ ) {
 		my $line_prev = $line;
 
@@ -2849,8 +2860,6 @@ sub parse_text_tango {
 sub parse_text_common {
 	my ($line, $res, $italic_ref) = @_;
 	# $italic_ref - Открытие-закрытие италика. Приходится протаскивать через парсер.
-
-	$line =~ s/^_//; #241 и многие другие
 
 	if ( $line =~ s/^\["([-\^=]?)([^\]]+)\]// ) { #  ["example"]
 		my $mark = $1;
@@ -2969,6 +2978,7 @@ sub parse_text_common {
 		}
 	}
 	elsif ( $line =~ s/^\+// ) {
+		$line =~ s/^_//; # #127,241,779,906,934,1617,1714,2119,2483,2503,2842,3123,...
 		$res .= atext_italic_stop(); # 2629
 		$$italic_ref = 0;
 
@@ -3183,6 +3193,8 @@ sub parse_compounds {
 
 	my $res;
 
+	$compounds =~ s/#//g;
+
 	my @spl = split /,/, $compounds;
 
 	foreach (@spl) {
@@ -3214,8 +3226,7 @@ sub parse_compounds {
 			ref_push  $res->{$row_num}, $comp_def_obj;
 		}
 		else {
-			return $res if /^=/; # Known bug in DB 5.1. TODO: Check in later versions.
-			# Check #4742 碯, #5051 羃
+			return $res if /^=/; # Служебные данные Яркси. Check #4742 碯, #5051 羃
 			fail "parse_compounds: wrong chunk: '$_'"
 		}
 	}
