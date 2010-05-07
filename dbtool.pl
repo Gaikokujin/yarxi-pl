@@ -6,7 +6,7 @@
 # Оригинальная программа (Яркси) и база данных словаря - (c) Вадим Смоленский.
 # (http://www.susi.ru/yarxi/)
 #
-# Copyright (C) 2007-2009  Андрей Смачёв aka Biga.
+# Copyright (C) 2007-2010  Андрей Смачёв aka Biga.
 #
 # This program is free software: you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
