@@ -5,7 +5,7 @@ package JD_AText;
 # Оригинальная программа и база данных словаря - (c) Вадим Смоленский.
 # (http://www.susi.ru/yarxi/)
 #
-# Copyright (C) 2007-2009  Андрей Смачёв aka Biga.
+# Copyright (C) 2007-2010  Андрей Смачёв aka Biga.
 #
 # This program is free software: you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -27,10 +27,10 @@ use utf8;
 use Carp;
 use JDCommon;
 
+# Export symbols
 require Exporter;
-@JD_AText::ISA = qw(Exporter);
-# Экспорт символов
-push @JD_AText::EXPORT, qw(
+our @ISA = qw(Exporter);
+our @EXPORT = qw(
 	&atext_plain &atext_tostr
 	&atext_italic &atext_italic_start &atext_italic_stop
 	&atext_kanji &atext_tango
@@ -38,14 +38,11 @@ push @JD_AText::EXPORT, qw(
 	&atext_lcfirst &atext_ucfirst &atext_upper
 );
 
-our $A = '^'; # Начало тэга
-our $Z = '#'; # Конец тэга
-
-my $C_pale       = $A.'P'.$Z;
-my $C_pale_off   = $A.'PX'.$Z;
-my $C_italic     = $A.'I'.$Z;
-my $C_italic_off = $A.'IX'.$Z;
-my $C_off        = $A.'CX'.$Z;
+my $C_pale       = '^P#';
+my $C_pale_off   = '^PX#';
+my $C_italic     = '^I#';
+my $C_italic_off = '^IX#';
+my $C_off        = '^CX#';
 
 sub atext_plain {
 	my ($txt) = @_;
@@ -59,10 +56,10 @@ sub atext_plain {
 sub atext_tostr {
 	my ($txt) = @_;
 
-	my $regexp_cl = "\\${A}[CPIT][^\\$Z]*\\$Z";
+	my $regexp_cl = "\\\^[CPIT][^\\#]*\\#";
 	$txt =~ s/$regexp_cl//g;
 
-	$regexp_cl = "\\${A}K\\d{4}(.)\\$Z";
+	$regexp_cl = "\\\^K\\d{4}(.)\\#";
 	$txt =~ s/$regexp_cl/$1/g;
 
 	return $txt;
@@ -91,7 +88,7 @@ sub atext_kanji {
 	# ^K 1234 Ж #
 
 	if ( defined $id ) {
-		return $A.'K'.sprintf('%04d', int($id)).$kanji.$Z;
+		return '^K'.sprintf('%04d', int($id)).$kanji.'#';
 	} else {
 		return $kanji;
 	}
@@ -102,7 +99,7 @@ sub atext_tango {
 
 	# ^T 1234# text ^TX#
 
-	return $A.'T'.sprintf('%05d', int($id)).$Z . $text .$A.'TX'.$Z;
+	return '^T'.sprintf('%05d', int($id)).'#'.$text.'^TX#';
 }
 
 sub C_color {
@@ -110,7 +107,7 @@ sub C_color {
 
 	$color =~ /^[a-z1-9_]+$/ or fail "Bad color name";
 
-	return $A.'C'.$color.$Z;
+	return '^C'.$color.'#';
 }
 
 sub atext_colored {
@@ -121,7 +118,7 @@ sub atext_colored {
 	return C_color($color) . $txt . $C_off;
 }
 
-my $regexp_f = "((\\${A}[^\\$Z]*\\$Z|[«»])*)([^\\$A«»])";
+my $regexp_f = "((\\\^[^\\#]*\\#|[«»])*)([^\\\^«»])";
 
 sub atext_lcfirst {
 	my ($txt) = @_;

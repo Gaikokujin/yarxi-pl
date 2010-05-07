@@ -5,7 +5,7 @@ package JDFormatter;
 # Оригинальная программа и база данных словаря - (c) Вадим Смоленский.
 # (http://www.susi.ru/yarxi/)
 #
-# Copyright (C) 2007-2009  Андрей Смачёв aka Biga.
+# Copyright (C) 2007-2010  Андрей Смачёв aka Biga.
 #
 # This program is free software: you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -28,15 +28,16 @@ use Carp;
 use JDCommon;
 use JD_AText;
 
+# Export symbols
 require Exporter;
-@JDFormatter::ISA = qw(Exporter);
-# Экспортирование символов
-push @JDFormatter::EXPORT, qw(
+our @ISA = qw(Exporter);
+our @EXPORT = qw(
 	$kana_base @kana
 
 	&format_article &kana &kiriji
 	&format_tango_alone
 );
+#-----------------------------------------------------------------------
 
 my $objects;
 my $tan_objs;
@@ -45,9 +46,6 @@ my $dom;
 my $global_num; # DBG:
 
 my $cur_block;
-
-my $kanji_cache = {};
-my $tango_cache = {};
 
 my $cur_trans_type; # Вид транскрипции: romaji/kiriji/hiragana/katakana
 my ($romaji_or_kiriji, $cur_trans_kana); # Часто используемые в коде условия.
@@ -497,7 +495,8 @@ sub kana {
 				$res .= get_kana($1.'U');
 				$res .= get_kana($2.'_');
 			} else {
-				fail $s;
+				$res .= get_kana($1.'u');
+				$res .= get_kana($2.'_');
 			}
 		}
 		elsif ( $s =~ /^(t)(i|yu)$/i ) {
@@ -505,7 +504,8 @@ sub kana {
 				$res .= get_kana('TE');
 				$res .= get_kana($2.'_');
 			} else {
-				fail $s;
+				$res .= get_kana('te');
+				$res .= get_kana($2.'_');
 			}
 		}
 		elsif ( $s =~ /^(j|ch|sh)(e)$/i ) {
@@ -522,7 +522,8 @@ sub kana {
 				$res .= get_kana('U');
 				$res .= get_kana($2.'_');
 			} else {
-				fail $s;
+				$res .= get_kana('u');
+				$res .= get_kana($2.'_');
 			}
 		}
 		elsif ( $s =~ /^(V)(Y?[IUEO])$/ ) {
@@ -541,6 +542,14 @@ sub kana {
 		elsif ( $s =~ /^(tu)$/i ) {
 			if ( $is_katakana ) {
 				$res .= get_kana('TSU');
+			} else {
+				fail $s;
+			}
+		}
+		elsif ( $s =~ /^(tso)$/i ) {
+			if ( $is_katakana ) {
+				$res .= get_kana('TSU');
+				$res .= get_kana('O_');
 			} else {
 				fail $s;
 			}
@@ -744,62 +753,8 @@ sub make_kanji($) {
 	my ($id) = @_;
 	$id =~ s/^0+//; # убираем нули из начала, чтобы проверить, что это число.
 	$id eq int($id) or fail;
-	return atext_kanji( chr( get_kanji_uncd($id) ), $id );
-}
-#----------------------------------------------------------------------
-
-# Кэширует запросы к базе.
-sub get_kanji_uncd {
-	my ($num) = @_;
-	defined $num  or fail "Undef kanji id: '$num'";
-	$num eq int($num)  or fail "Wrong kanji id: '$num'";
-	$num > 0  or fail "Wrong kanji id: '$num'";
-
-	# Смотрим в кэш
-	if ( defined $kanji_cache->{$num}
-		&& defined $kanji_cache->{$num}{'Uncd'} )
-	{
-		return $kanji_cache->{$num}{'Uncd'};
-	}
-
-	# Query
-	my $sql = "SELECT Uncd FROM Kanji WHERE Nomer=?";
-	my $sth = $dbh->prepare($sql);
-	$sth->execute($num);
-
-	my $row = $sth->fetchrow_hashref();
-
-	$kanji_cache->{$num} = $row;
-
-	return $row->{'Uncd'};
-}
-#----------------------------------------------------------------------
-
-sub fetch_kanji_full {
-	my ($num) = @_;
-
-	# Проверяем кэш
-	if ( defined $kanji_cache->{$num}
-		&& defined $kanji_cache->{$num}{'Russian'} )
-	{
-		return $kanji_cache->{$num};
-	}
-
-	# Query
-	my $sth = $dbh->prepare("SELECT * FROM Kanji WHERE Nomer= ?;");
-	$sth->execute($num);
-	my $row = $sth->fetchrow_hashref();
-
-	return undef if !$row;
-
-	# Декодируем UTF-8
-	utf8::decode( $row->{'Russian'} );
-	utf8::decode( $row->{'RusNick'} );
-
-	# Добавляем в кэш
-	$kanji_cache->{$num} = $row;
-
-	return $row;
+	my $row = fetch_kanji_full($id);
+	return atext_kanji( chr( $row->{'Uncd'} ), $id );
 }
 #----------------------------------------------------------------------
 
@@ -833,38 +788,6 @@ sub make_tango {
 	return atext_tango($tango_id, $text);
 }
 #----------------------------------------------------------------------
-
-sub fetch_tango_full {
-	my ($tango_id) = @_;
-
-	# Проверяем кэш
-	if ( defined $tango_cache->{$tango_id}
-		&& defined $tango_cache->{$tango_id}{'Russian'} )
-	{
-		return $tango_cache->{$tango_id};
-	}
-
-	# Query
-	my $sth = $dbh->prepare("SELECT * FROM Tango WHERE Nomer=?");
-	$sth->execute($tango_id);
-	my $row = $sth->fetchrow_hashref();
-
-	return undef if !$row;
-
-	# Декодируем UTF-8
-	utf8::decode( $row->{'Russian'} );
-
-	# Добавляем в кэш
-	$tango_cache->{$tango_id} = $row;
-
-	return $row;
-}
-#----------------------------------------------------------------------
-
-sub clear() {
-	$kanji_cache = {};
-	$tango_cache = {};
-}
 
 ## Главная функция ##
 
@@ -1243,10 +1166,10 @@ sub parse_kun_chain {
 				($chunk, my $rem_obj) = parse_remark($chunk);
 
 				my $arr1 = $rem_obj->{'children'};
-				if ( $rem_prev && $arr1 && $arr1->[$#$arr1]{'type'} ne 'text' ) {
+				if ( $rem_prev && $arr1 && $arr1->[-1]{'type'} ne 'text' ) {
 					my $arr2 = $rem_prev->{'children'};
-					if ( $arr2 && $arr2->[$#$arr2]{'type'} eq 'text' ) {
-						add_child $rem_obj, $arr2->[$#$arr2]; # Kana tail
+					if ( $arr2 && $arr2->[-1]{'type'} eq 'text' ) {
+						add_child $rem_obj, $arr2->[-1]; # Kana tail
 					}
 				}
 
@@ -2846,7 +2769,7 @@ sub parse_text_tango {
 			($line, $res) = parse_text_common( $line, $res, \$italic );
 		}
 
-		$line_prev ne $line or fail "infinite loop: $line %% $line_orig";
+		$line_prev ne $line or fail "infinite loop: '$line' %% '$line_orig'";
 	}
 
 	if ( $italic ) {
@@ -3530,7 +3453,7 @@ sub parse_kana {
 		if ( $s =~ /^([knhmrgjbp]|sh|ch)i$/i ) {
 			push @res, $s; $s = ''; next;
 		}
-		if ( $s =~ /^(tsu|ti|si|je|[fh]y?[aiueo])$/i ) {
+		if ( $s =~ /^(tsu|ti|tso|si|je|[fh]y?[aiueo])$/i ) {
 			push @res, $s; $s = ''; next;
 		}
 		if ( $s =~ /^(y[auo]|w[aoe]|j[auo]|[td][aeo])$/i ) {
